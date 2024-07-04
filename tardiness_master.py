@@ -9,35 +9,7 @@ import logging
 
 logging.getLogger('pyomo.core').setLevel(logging.ERROR)
 
-# Set the values of variables for the warm-start solution
-def warm_up(nJobs, nSlots, nMachines, processing_times, setup_times, deadlines, solution):
-	f_x = [[[0.0 for m in range(nMachines)] for j in range(nJobs)] for i in range(nSlots)] # f_x : Values of variables x
-	f_P = [[0.0 for m in range(nMachines)] for j in range(nSlots)] # f_P : Values of variables P
-	f_S = [[0.0 for m in range(nMachines)] for j in range(nSlots)] # f_S : Values of variables S
-	f_C = [[0.0 for m in range(nMachines)] for j in range(nSlots)] # f_C : Values of variables C
-	f_D = [[0.0 for m in range(nMachines)] for j in range(nSlots)] # f_D : Values of variables D
-	f_T = [[0.0 for m in range(nMachines)] for j in range(nSlots)] # f_T : Values of variables T
-
-	for m in range(nMachines):
-		timeline = 0
-		for i in range(len(solution[m])):
-			f_x[nSlots - len(solution[m]) + i][solution[m][i]][m] = 1.0
-			f_P[nSlots - len(solution[m]) + i][m] = processing_times[solution[m][i]][m]
-			f_D[nSlots - len(solution[m]) + i][m] = deadlines[solution[m][i]]
-			if i == 0:
-				f_S[nSlots - len(solution[m]) + i][m] = 0
-				f_C[nSlots - len(solution[m]) + i][m] = f_P[nSlots - len(solution[m]) + i][m] + f_S[nSlots - len(solution[m]) + i][m]
-				timeline = f_C[nSlots - len(solution[m]) + i][m]
-				f_T[nSlots - len(solution[m]) + i][m] = max([0, timeline - deadlines[solution[m][i]]])
-			else:
-				f_S[nSlots - len(solution[m]) + i][m] = setup_times[solution[m][i-1], solution[m][i], m]
-				f_C[nSlots - len(solution[m]) + i][m] = timeline + f_P[nSlots - len(solution[m]) + i][m] + f_S[nSlots - len(solution[m]) + i][m]
-				timeline = f_C[nSlots - len(solution[m]) + i][m]
-				f_T[nSlots - len(solution[m]) + i][m] = max([0, timeline - deadlines[solution[m][i]]])
-
-	return f_x, f_P, f_S, f_C, f_D, f_T
-
-def master_problem(nJobs, nSlots, nMachines, processing_times, big_M, setup_times, deadlines, setup_minus, warm_start):
+def master_problem(nJobs, nSlots, nMachines, processing_times, big_M, setup_times, deadlines, setup_minus):
 	master = ConcreteModel(name = "Master Problem")
 
 	# Sets
@@ -56,19 +28,6 @@ def master_problem(nJobs, nSlots, nMachines, processing_times, big_M, setup_time
 
 	# Objective function
 	master.obj = Objective(rule = master.z, sense = minimize)
-
-	f_x, f_P, f_S, f_C, f_D, f_T = warm_up(nJobs, nSlots, nMachines, processing_times, setup_times, deadlines, warm_start) # Import values from the warm-start solution.
-	# Adjust values from warm-start solutions
-	for m in master.Machines:
-		for i in master.Slots:
-			master.Processing[i, m] = f_P[i][m]
-			master.Setup[i, m] = f_S[i][m]
-			master.Completion[i, m] = f_C[i][m]
-			master.Due[i, m] = f_D[i][m]
-			master.Tardiness[i, m] = f_T[i][m]
-			for j in master.Jobs:
-				master.x[i, j, m] = f_x[i][j][m]
-	master.z = big_M
 
 	# Constraints
 	master.constraints = ConstraintList()

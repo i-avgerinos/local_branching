@@ -64,15 +64,15 @@ def solve_subproblem(nJobs, nMachines, processing_times, setup_times, deadlines,
     
     sol = subproblem.solve(TimeLimit = 15, trace_log = False) # Solve the subproblem
     if sol: # If a feasible solution is found ...
-        local_bound = 0
+        local_bound, utilization, total_time = 0, 0, 0
         for s in range(len(neighbourhood)):
             if sol[selectedSolution[s]] > 0.5:
                 for j in range(nJobs):
                     local_bound += sol[tardiness[s][j]]
                 break
-        return local_bound # ...return the local bound...
+        return local_bound, big_M # ...return the local bound...
     else:
-        return big_M # ...otherwise, return a big numeric value (always greater than the incumbent upper bound)
+        return big_M, big_M # ...otherwise, return a big numeric value (always greater than the incumbent upper bound)
 
 # Add Benders cuts
 '''
@@ -104,7 +104,7 @@ def relaxation(solution, processing_times, setup_times, deadlines):
     return rb # Return the value of the relaxed bound
 
 # Execution of all possible internal swaps over a given solution
-def internal_swaps(nJobs, nMachines, processing_times, setup_times, deadlines, resources, solution, neighbourhood, big_M, best_ub):
+def internal_swaps(nJobs, nMachines, processing_times, setup_times, deadlines, resources, solution, neighbourhood, big_M, best_ub, algorithm):
     for m in solution.keys():
         for i in solution[m]:
             for j in solution[m]:
@@ -112,13 +112,16 @@ def internal_swaps(nJobs, nMachines, processing_times, setup_times, deadlines, r
                     new_solution = copy.deepcopy(solution)
                     pos_i, pos_j = solution[m].index(i), solution[m].index(j)
                     new_solution[m][pos_i], new_solution[m][pos_j] = j, i
-                    new_rb = relaxation(new_solution, processing_times, setup_times, deadlines) # Obtain the relaxed bound for the generated solution
-                    if new_solution not in neighbourhood and new_rb < best_ub: # If the relaxed bound is worse than the incumbent one, the solution can be ignored as suboptimal.
+                    if algorithm != 2:
+                        new_rb = relaxation(new_solution, processing_times, setup_times, deadlines) # Obtain the relaxed bound for the generated solution
+                        if new_solution not in neighbourhood and new_rb < best_ub: # If the relaxed bound is worse than the incumbent one, the solution can be ignored as suboptimal.
+                            neighbourhood.append(new_solution)
+                    else:
                         neighbourhood.append(new_solution)           
     return neighbourhood # Return the updated neighbourgood
 
 # Execution of all possible starting-jobs shifts over a given solution
-def starting_jobs(nJobs, nMachines, processing_times, setup_times, deadlines, resources, solution, neighbourhood, big_M, best_ub):
+def starting_jobs(nJobs, nMachines, processing_times, setup_times, deadlines, resources, solution, neighbourhood, big_M, best_ub, algorithm):
     for m in solution.keys():
         if len(solution[m]) > 0:
             job = solution[m][0]
@@ -127,7 +130,10 @@ def starting_jobs(nJobs, nMachines, processing_times, setup_times, deadlines, re
                     new_solution = copy.deepcopy(solution)
                     new_solution[m].remove(job)
                     new_solution[k].insert(0, job)
-                    new_rb = relaxation(new_solution, processing_times, setup_times, deadlines) # Obtain the relaxed bound for the generated solution
-                    if new_solution not in neighbourhood and new_rb < best_ub: # If the relaxed bound is worse than the incumbent one, the solution can be ignored as suboptimal.
+                    if algorithm != 2:
+                        new_rb = relaxation(new_solution, processing_times, setup_times, deadlines) # Obtain the relaxed bound for the generated solution
+                        if new_solution not in neighbourhood and new_rb < best_ub: # If the relaxed bound is worse than the incumbent one, the solution can be ignored as suboptimal.
+                            neighbourhood.append(new_solution)
+                    else:
                         neighbourhood.append(new_solution)
     return neighbourhood # Return the updated neighbourgood
