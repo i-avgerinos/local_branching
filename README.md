@@ -1,7 +1,5 @@
 # main
-'Instances.json' :    The datasets that have been used for the experiments.  
-
-'Warm_start.json' :   Feasible solutions that have been used as warm-starts for the master problem  
+'Instances.json' :    The datasets that have been used for the experiments.   
 
 # tardiness branch
 'tardiness_main.py' :          The file to be executed; the instances are imported one-by-one and solved by Algorithms 1 and 2  
