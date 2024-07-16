@@ -18,13 +18,16 @@ def cp(nJobs, nSlots, nMachines, processing_times, big_M, setup_times, resources
 	CP = CpoModel()
 
 	processInt = {}
-	for j in range(nJobs):
+	for j in range(nJobs+nMachines):
 		for m in range(nMachines):
 			start, end = (0, big_M), (0, big_M)
-			size = math.ceil(processing_times[j][m])
+			if j < nJobs:
+				size = math.ceil(processing_times[j][m])
+			else:
+				size = 0
 			processInt[(j, m)] = CP.interval_var(start, end, size, optional = True, name = f"process_{j},{m}")
 	setupInt = {}
-	for j in range(nJobs):
+	for j in range(nJobs+nMachines):
 		for m in range(nMachines):
 			start, end = (0, big_M), (0, big_M)
 			setupInt[(j, m)] = CP.interval_var(start, end, optional = True, name = f"setup_{j},{m}")
@@ -43,11 +46,11 @@ def cp(nJobs, nSlots, nMachines, processing_times, big_M, setup_times, resources
 			CP.add(CP.presence_of(processInt[(j, m)]) == CP.presence_of(setupInt[(j, m)]))
 			CP.add(CP.start_at_end(processInt[(j, m)], setupInt[(j, m)]))
 	for m in range(nMachines):
-		CP.add(CP.no_overlap(sequence[m], sTimes[m]))
+		CP.add(CP.no_overlap(sequence[m]))
 		CP.add(sum(CP.pulse(setupInt[(j, m)], 1) for j in range(nJobs)) <= resources)
 
-	isNext = [[CP.integer_var(0, nJobs, name = f"next_{i}") for i in range(nJobs)] for j in range(nJobs)]
-
+	isNext = [CP.integer_var(0, nJobs+nMachines-1, name = f"next_{i}") for i in range(nJobs)]
+	CP.add(CP.all_diff([isNext[j] for j in range(nJobs)]))
 	for i in range(nJobs):
 		CP.add(isNext[i] != i)
 		for j in range(nJobs):
@@ -59,7 +62,7 @@ def cp(nJobs, nSlots, nMachines, processing_times, big_M, setup_times, resources
 	CP.add(CP.minimize(sum(tardiness[j] for j in range(nJobs))))
 	#CP.add(CP.minimize(sum(CP.end_of(processInt[(j, m)]) for j in range(nJobs) for m in range(nMachines))))
 	
-	sol = CP.solve(TimeLimit = 600, trace_log = False) # Solve the CP
+	sol = CP.solve(TimeLimit = 3600, trace_log = False) # Solve the CP
 	if sol:
 		local_bound = 0
 		for m in range(nMachines):
